@@ -23,7 +23,7 @@ print('before')
 ## [blur]
 
 ## [Hough]
-circles = cv.HoughCircles(img, cv.HOUGH_GRADIENT,2,20,param1=80,param2=200,minRadius=50,maxRadius=400)
+circles = cv.HoughCircles(img, cv.HOUGH_GRADIENT,2,20,param1=80,param2=200,minRadius=60,maxRadius=400)
 circles = circles.astype(int)
 print(circles)
 for i in circles[0,:]:	  
