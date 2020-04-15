@@ -18,19 +18,22 @@ def analyze_ref(picpath, batchsize):
 	# OUTPUT: matrix of colors
 	## PREPROCESSING ##
 	img = cv.imread(picpath)
+
 	img = cv.medianBlur(img,3)	# blur
-	scaling = 0.1
+	scaling = 1
 	width = int(img.shape[1]*scaling)
+	print('width = ' + str(width))
 	height = int(img.shape[0]*scaling)
+	print('height = ' + str(height))
 	dim = (width,height)
 	img = cv.resize(img, dim, interpolation = cv.INTER_AREA)
 
-
+	'''
 	# visually check if sizing works
 	cv.imshow('Image',img)
 	cv.waitKey(0)
 	cv.destroyAllWindows() 
-
+	'''
 	## END PREPORCESSING ##
 
 
@@ -46,21 +49,58 @@ def analyze_ref(picpath, batchsize):
 	R_n[0] = 0.5 * math.sqrt(width*height/batchsize) # estimate initial guess via grid pattern of circles
 	#print('initial guess: R = ', R_n[0])
 	#print('Starting Newton Iteration')
-	while(error > tol and k <= maxiter):	# Newton iteration
+	while(error > tol and k < maxiter):	# Newton iteration
 		R_n[k+1] = R_n[k] - F(R_n[k],width,height,batchsize)/f(R_n[k],width,height,batchsize)
-		error = np.linalg.norm(R_n[k+1]-R_n[k])		# recalculate error
+		# alternative error: 
 		k += 1
-		#print("iteration {:d}: R={:f}, error={:.15f}".format(k,R_n[k],error))
-	R = int(math.floor(R_n[k]))	# use result of last iteration as radius R
-	print('Radius: ' + str(R))
+		error = np.linalg.norm(R_n[k]-R_n[k-1])		# recalculate error
 
+		print("iteration {:d}: R={:f}, error={:.15f}".format(k,R_n[k],error))
+	print()
 	## END NEWTON ##
+	R = int(math.floor(R_n[k]))	# use result of last iteration as radius R
+	# find best rounding to maximize used caps while not exceeding the batchsize
+	xnum_ex = (width-R_n[k])/(2*R_n[k])
+	ynum_ex = (height-2*R_n[k])/(R_n[k]*math.sqrt(3))+1
+	print('xnum_ex, ynum_ex = ' + str(xnum_ex) + ', ' + str(ynum_ex))
+	'''
+	xnum_ceil = int(math.ceil((width-R)/(2*R)))
+	xnum_floor = int(math.floor((width-R)/(2*R)))
+	ynum_ceil = int(math.ceil((height-2*R)/(R*math.sqrt(3))+1))
+	ynum_floor = int(math.floor((height-2*R)/(R*math.sqrt(3))+1))
+	'''
+	xnum_ceil = int(math.ceil(xnum_ex))
+	xnum_floor = int(math.floor(xnum_ex))
+	ynum_ceil = int(math.ceil(ynum_ex))
+	ynum_floor = int(math.floor(ynum_ex))
 
-	# calculate 
-	xnum = int(math.floor((width-R)/(2*R)))
-	#print('xnum = ', xnum)
-	ynum = int(math.floor((height-2*R)/(R*math.sqrt(3))+1))
-	#print('ynum = ', ynum)   
+	print('xnum_ceil = ' + str(xnum_ceil) + '; xnum_floor = ' + str(xnum_floor) + '; ynum_ceil = ' + str(ynum_ceil) + '; ynum_floor = ' + str(ynum_floor))
+	'''
+	if (batchsize - xnum_ceil*ynum_ceil) >= 0: 
+		xnum = xnum_ceil
+		ynum = ynum_ceil
+	elif (batchsize - xnum_ceil*ynum_floor) > 0 and xnum_ceil*ynum_floor > xnum_floor*ynum_ceil: 
+		xnum = xnum_ceil        
+		ynum = ynum_floor
+	elif (batchsize - xnum_floor*ynum_ceil) >= 0:
+		xnum = xnum_floor 
+		ynum = ynum_ceil
+	elif (batchsize - xnum_floor*ynum_floor) >= 0:
+		xnum = xnum_floor
+		ynum = ynum_floor
+	else:
+		xnum = xnum_floor 	# eliminate the possibility of using mor botttle caps than we actually have
+		ynum = ynum_floor-1
+		 '''
+	xnum = xnum_floor
+	ynum = ynum_floor	 
+	print('xnum, ynum = ' + str(xnum) + ', ' + str(ynum))
+	'''
+	xnum = int(math.floor((width-R_n[k])/(2*R_n[k])))
+	ynum = int(math.floor((height-2*R_n[k])/(R_n[k]*math.sqrt(3))+1))	
+	'''
+	
+	print('Radius: ' + str(R))
 
 
 	## COLLECT DATA ##
@@ -70,9 +110,12 @@ def analyze_ref(picpath, batchsize):
 	bigdata = np.zeros((xnum,ynum,3),np.uint8) # initialize matrix with saved color values (BGR)
 
 	xcentering_value = (width - xnum*2*R-R)/2
-	ycentering_value = (height - (ynum-1)*math.sqrt(3)*R - 2*R)/2 
+	ycentering_value = (height - (ynum-1)*math.sqrt(3)*R - 2*R)/2
+	if ycentering_value < 0	: # catching a weird edge case that probably results from rounding
+		ynum = ynum-1
+		ycentering_value = (height - (ynum-1)*math.sqrt(3)*R - 2*R)/2
 
-	#print('xcentering_value = ',xcentering_value,'ycentering_value =', ycentering_value)
+	print('xcentering_value = ',xcentering_value,'ycentering_value =', ycentering_value)
 	for i in range(0,xnum):
 		for j in range(0,ynum):
 			# calculate x and y pos of current circle
@@ -109,9 +152,22 @@ def analyze_ref(picpath, batchsize):
 			bigdata[i,j,:] = res_col # save color to matrix
 
 	## END COLLECT DATDA ##
+	return bigdata, R, dim 
 
 
-	## VISUALIZATION ##
+## VISUALIZATION ##
+def visualize_circles(bigdata ,R, dim, scaling=0.1):
+	# fun input would be height, width, R, color matrix, xnum/ynum can be determined form the matrix shape
+	xnum = bigdata.shape[0]
+	ynum = bigdata.shape[1]
+	width = dim[0]
+	height = dim[1]
+
+	xcentering_value = (width - xnum*2*R-R)/2
+	ycentering_value = (height - (ynum-1)*math.sqrt(3)*R - 2*R)/2
+	if ycentering_value < 0	: # catching a weird edge case that probably results from rounding
+		ynum = ynum-1
+		ycentering_value = (height - (ynum-1)*math.sqrt(3)*R - 2*R)/2
 
 	board = np.zeros((height,width,3), np.uint8) # creates a black image with the same dimensions as the original
 
@@ -125,20 +181,41 @@ def analyze_ref(picpath, batchsize):
 			#print(color)
 			cv.circle(board,(x_val,y_val), R, color, -1) #	 arg1=image, arg2=center coord, ..
 							# .. arg3=radius, arg4=color, arg5=thickness (negative means filled circle)
+	#batcherror = batchsize - xnum*ynum
+
+	#scaling = 0.1  
+	board = cv.resize(board, (int(width*scaling),int(height*scaling)), interpolation = cv.INTER_AREA)
+	
+	#print(dim)
+	
+	'''
+	print('xnum*ynum = ' + str(xnum*ynum))
+	print('batcherror = ' + str(batcherror))
+	print('batchsize = ' + str(batchsize))
+	print('heigtherror = ' + str(height - (math.sqrt(3)*R*(ynum-1)+2*R)))
+	print('widtherror = ' + str(width - (2*R*xnum+R)))
+	'''
 	cv.imshow('Image',board)
 	cv.waitKey(0)
-	cv.destroyAllWindows()
-	#print(dim)
-	batcherror = batchsize - xnum*ynum
-	print('batcherror = ' + str(batcherror))
-
-	## END VISUALIZATION ##
+	cv.destroyAllWindows()   
+	return 0
+## END VISUALIZATION ##
 
 
-	return bigdata
 '''
-batchsize = 500 # how many circles are we trying to fit?   
-picpath = '/home/jonas/Downloads/e333e20665d2672a9543f689f6b7e4e3.jpg'
+picpath = '/home/jonas/Downloads/20200222_013257.jpg'
 
-analyze_ref(picpath,batchsize)
+batchsize = 180  
+bigdata, R, dim = analyze_ref(picpath,batchsize)
+visualize_circles(bigdata,R,dim)
 '''
+'''
+for i in range(0,50) :      
+	batchsize = 400+i
+	analyze_ref(picpath,batchsize)
+#batchsize = 200 # how many circles are we trying to fit?   
+'''
+
+
+
+ 
