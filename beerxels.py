@@ -5,12 +5,15 @@ import time
 import Pi
 import Bi
 import sys
+import visualization
+import munkres
+
 sys.path.insert(0,'./hungarian-algorithm')
 import hungarian
 
-ref = '/home/jonas/Downloads/20200415_014040.jpg'
+ref = '/home/jonas/Downloads/DSC00423.jpg'
 
-src = '/home/jonas/Projects/Beerxels/Data' # path/to/cap/folder
+src = '/media/jonas/ESD-USB/DCIM/100CANON' # path/to/cap/folder
 
 limit_caps = None # a number or None for all
 
@@ -40,36 +43,56 @@ ref_mat, R, dim = Pi.analyze_ref(ref, len(cap_col_vec))
 
 ref_dim = (ref_mat.shape[0],ref_mat.shape[1]) # (width, height)
 ref_vec = ref_mat.reshape((ref_dim[0]*ref_dim[1],1,3))	# convert reference picture matrix to vector
-print('ref_mat:', ref_mat)
-print('res_vec', ref_vec)
-print(ref_dim)
+#print('ref_mat:', ref_mat)
+#print('res_vec', ref_vec)
+#print(ref_dim)
+'''
+# testing
+for i in range(0,len(cap_img_list)):
+	cv.imshow('Image', cap_img_list[i])
+	cv.waitKey(0)
+	cv.destroyAllWindows()
+# testing
+'''
 
 M = len(cap_col_vec) # number of caps
 N = ref_vec.shape[0] # number of reference color values
 
 cost_matrix = np.zeros((N,N))
-print cap_col_vec.shape
-print ref_vec.shape
+#print cap_col_vec.shape
+#print ref_vec.shape
 
 # init cost matrix
 for i in range(0,N):
 	for j in range(0,N):
 		cost_matrix[i,j] = color_error(cap_col_vec[i,:],ref_vec[j,0,:])
 
-
+print('Calculating permutations...')
+'''
 hungarian = hungarian.Hungarian(cost_matrix)
 hungarian.calculate()
-print hungarian
-res = hungarian.get_results()
-print res
+res = hungarian.get_results() # returns an N long list of tuples with (cap_col,ref_col) pairings
+'''
+m = munkres.Munkres()
+res = m.compute(cost_matrix)
+
+print(res)
 
 res_vec = np.zeros((ref_vec.shape[0],3))
 # initialize resulting verctor
+
+res_cap_img_list = [None] * len(res)
 for i in range(0,len(res)):
 	res_vec[res[i][1]] = cap_col_vec[res[i][0],:]
+	res_cap_img_list[res[i][1]] = cap_img_list[res[i][0]]
+	# reshuffle 
 
+#print('R = ' + str(R))
 res_mat = res_vec.reshape((ref_mat.shape[0],ref_mat.shape[1],3))
-Pi.visualize_circles(res_mat,R,dim)
+visualization.vis_caps(res_mat,R,dim,res_cap_img_list, scaling=0.5)
+visualization.vis_circles(res_mat,R,dim, scaling=0.5)
+
+
 # set resulting vector
 # convert resulting vector to matrix
 
@@ -88,12 +111,7 @@ Pi.visualize_circles(res_mat,R,dim)
 
 
 # make copy of matrix to modify
-# for 'number of pi entries':
-	# find minimum error
-	# get row and col to save as touple of pi and bi value
-		# at i,j position of the pi value, set the bi value
-	# set entire row and entire colum to idk, like 1000, just anything that is a lot higher than the highest error to be found
-	# repeat
+# 
 # visualize 
 
 # implement fitting algorithm
