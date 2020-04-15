@@ -11,19 +11,29 @@ import os
 	# no return, just save data in txt or whatever
 
 
-def analyze_caps(path2dir):
+def analyze_caps(path2dir, maxcaps=None):
 	# INPUT: path to reference image
-	# OUTPUT: array[cap number, color[B,G,R], actual cutout image[...]] 
+	# OUTPUT: array of all the colors[G,B.R] and corresponding list of images
+	
 	# get  number of files
+	# init
+	if maxcaps == None:
+		res_col_vec = np.zeros((len(os.listdir(path2dir)),3))
+	else: res_col_vec = np.zeros((maxcaps,3))
+	res_img_list = []
 
-	masterlist = []
-	k = 0 # iterator
+	k = 1 # iterator
 	for filename in os.listdir(path2dir): # iterates through all images in 
+		if maxcaps != None:
+			if k > maxcaps:	return res_col_vec, res_img_list;
 		if filename.endswith(".jpg") or filename.endswith(".png"):
 			path = os.path.join(path2dir,filename)
-			masterlist.append(analyze_cap(k,path))
+			res_col,res_img = analyze_cap(k,path)
+			res_col_vec[k-1,:] = res_col
+			res_img_list.append(res_img)
+
 			k += 1
-	return masterlist
+	return res_col_vec, res_img_list;
 
 
 def analyze_cap(ident,path2cap):
@@ -38,7 +48,7 @@ def analyze_cap(ident,path2cap):
 	dim = (width, height)
 	img = cv.resize(img, dim, interpolation = cv.INTER_AREA)
 	## [resize]
-
+	
 	'''
 	# testing
 	cv.imshow('Image', img)
@@ -136,11 +146,14 @@ def analyze_cap(ident,path2cap):
 	green = res[:,:,1]
 	red = res[:,:,2]
 
-	# average values
+	# alen([name for name in os.listdir('.') if os.path.isfile(name)])verage values
 	blue_av = np.sum(blue)/col_px
 	green_av = np.sum(green)/col_px
 	red_av = np.sum(red)/col_px
-	res_col = [blue_av,green_av,red_av]
+	res_col = np.zeros(3)
+	res_col[0] = blue_av
+	res_col[1] = green_av
+	res_col[2] = red_av
 
 	'''
 	# testing 
@@ -152,7 +165,14 @@ def analyze_cap(ident,path2cap):
 	'''
 
 	# return value
-	return [ident,res_col,res]
+	'''
+	res_arr = np.zeros(3)
+	res_arr[0] = ident
+	res_arr[1] = res_col	
+	res_arr[2] = res
+	print(type(res_arr))
+	'''
+	return res_col,res;
 
 	
 	
