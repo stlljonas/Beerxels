@@ -17,14 +17,15 @@ def analyze_ref(picpath, batchsize):
 	# INPUT: path to picture
 	# OUTPUT: matrix of colors
 	## PREPROCESSING ##
+	print('Analyzing reference..')
 	img = cv.imread(picpath)
 
 	img = cv.medianBlur(img,3)	# blur
 	scaling = 1
 	width = int(img.shape[1]*scaling)
-	print('width = ' + str(width))
+	##print('width = ' + str(width))
 	height = int(img.shape[0]*scaling)
-	print('height = ' + str(height))
+	##print('height = ' + str(height))
 	dim = (width,height)
 	img = cv.resize(img, dim, interpolation = cv.INTER_AREA)
 
@@ -55,14 +56,14 @@ def analyze_ref(picpath, batchsize):
 		k += 1
 		error = np.linalg.norm(R_n[k]-R_n[k-1])		# recalculate error
 
-		print("iteration {:d}: R={:f}, error={:.15f}".format(k,R_n[k],error))
-	print()
+		#print("iteration {:d}: R={:f}, error={:.15f}".format(k,R_n[k],error))
+	
 	## END NEWTON ##
 	R = int(math.floor(R_n[k]))	# use result of last iteration as radius R
 	# find best rounding to maximize used caps while not exceeding the batchsize
 	xnum_ex = (width-R_n[k])/(2*R_n[k])
 	ynum_ex = (height-2*R_n[k])/(R_n[k]*math.sqrt(3))+1
-	print('xnum_ex, ynum_ex = ' + str(xnum_ex) + ', ' + str(ynum_ex))
+	##print('xnum_ex, ynum_ex = ' + str(xnum_ex) + ', ' + str(ynum_ex))
 	'''
 	xnum_ceil = int(math.ceil((width-R)/(2*R)))
 	xnum_floor = int(math.floor((width-R)/(2*R)))
@@ -74,7 +75,7 @@ def analyze_ref(picpath, batchsize):
 	ynum_ceil = int(math.ceil(ynum_ex))
 	ynum_floor = int(math.floor(ynum_ex))
 
-	print('xnum_ceil = ' + str(xnum_ceil) + '; xnum_floor = ' + str(xnum_floor) + '; ynum_ceil = ' + str(ynum_ceil) + '; ynum_floor = ' + str(ynum_floor))
+	#print('xnum_ceil = ' + str(xnum_ceil) + '; xnum_floor = ' + str(xnum_floor) + '; ynum_ceil = ' + str(ynum_ceil) + '; ynum_floor = ' + str(ynum_floor))
 	'''
 	if (batchsize - xnum_ceil*ynum_ceil) >= 0: 
 		xnum = xnum_ceil
@@ -94,13 +95,13 @@ def analyze_ref(picpath, batchsize):
 		 '''
 	xnum = xnum_floor
 	ynum = ynum_floor	 
-	print('xnum, ynum = ' + str(xnum) + ', ' + str(ynum))
+	#print('xnum, ynum = ' + str(xnum) + ', ' + str(ynum))
 	'''
 	xnum = int(math.floor((width-R_n[k])/(2*R_n[k])))
 	ynum = int(math.floor((height-2*R_n[k])/(R_n[k]*math.sqrt(3))+1))	
 	'''
 	
-	print('Radius: ' + str(R))
+	#print('Radius: ' + str(R))
 
 
 	## COLLECT DATA ##
@@ -115,7 +116,7 @@ def analyze_ref(picpath, batchsize):
 		ynum = ynum-1
 		ycentering_value = (height - (ynum-1)*math.sqrt(3)*R - 2*R)/2
 
-	print('xcentering_value = ',xcentering_value,'ycentering_value =', ycentering_value)
+	#print('xcentering_value = ',xcentering_value,'ycentering_value =', ycentering_value)
 	for i in range(0,xnum):
 		for j in range(0,ynum):
 			# calculate x and y pos of current circle
@@ -155,51 +156,6 @@ def analyze_ref(picpath, batchsize):
 	return bigdata, R, dim 
 
 
-## VISUALIZATION ##
-def visualize_circles(bigdata ,R, dim, scaling=0.1):
-	# fun input would be height, width, R, color matrix, xnum/ynum can be determined form the matrix shape
-	xnum = bigdata.shape[0]
-	ynum = bigdata.shape[1]
-	width = dim[0]
-	height = dim[1]
-
-	xcentering_value = (width - xnum*2*R-R)/2
-	ycentering_value = (height - (ynum-1)*math.sqrt(3)*R - 2*R)/2
-	if ycentering_value < 0	: # catching a weird edge case that probably results from rounding
-		ynum = ynum-1
-		ycentering_value = (height - (ynum-1)*math.sqrt(3)*R - 2*R)/2
-
-	board = np.zeros((height,width,3), np.uint8) # creates a black image with the same dimensions as the original
-
-	for i in range(0,xnum):
-		for j in range(0,ynum):
-			x_val = int(R+i*2*R + R*(j%2) + xcentering_value)
-			y_val = int(R+j*math.sqrt(3)*R + ycentering_value)
-			color = (bigdata[i,j,0],bigdata[i,j,1],bigdata[i,j,2])
-			color = np.array((int(bigdata[i,j,0]),int(bigdata[i,j,1]),int(bigdata[i,j,2])))
-			color = np.array((int(bigdata[i,j,0]),int(bigdata[i,j,1]),int(bigdata[i,j,2]))).tolist()
-			#print(color)
-			cv.circle(board,(x_val,y_val), R, color, -1) #	 arg1=image, arg2=center coord, ..
-							# .. arg3=radius, arg4=color, arg5=thickness (negative means filled circle)
-	#batcherror = batchsize - xnum*ynum
-
-	#scaling = 0.1  
-	board = cv.resize(board, (int(width*scaling),int(height*scaling)), interpolation = cv.INTER_AREA)
-	
-	#print(dim)
-	
-	'''
-	print('xnum*ynum = ' + str(xnum*ynum))
-	print('batcherror = ' + str(batcherror))
-	print('batchsize = ' + str(batchsize))
-	print('heigtherror = ' + str(height - (math.sqrt(3)*R*(ynum-1)+2*R)))
-	print('widtherror = ' + str(width - (2*R*xnum+R)))
-	'''
-	cv.imshow('Image',board)
-	cv.waitKey(0)
-	cv.destroyAllWindows()   
-	return 0
-## END VISUALIZATION ##
 
 
 '''
